@@ -1,0 +1,444 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Scripps Pier Surf – Live NOAA LJPC1</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <style>
+    body {
+      margin: 0;
+      padding: 0;
+      font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      background: #e0f2fe;
+      display: flex;
+      justify-content: center;
+      align-items: flex-start;
+    }
+
+    .surf-card {
+      margin: 16px;
+      max-width: 480px;
+      width: 100%;
+      background: #ffffff;
+      border-radius: 14px;
+      border: 1px solid #e5e7eb;
+      box-shadow: 0 8px 18px rgba(15, 23, 42, 0.15);
+      overflow: hidden;
+      color: #0f172a;
+    }
+
+    .surf-header {
+      padding: 10px 16px;
+      background: linear-gradient(135deg, #0ea5e9, #22c55e);
+      color: #f9fafb;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    .surf-location {
+      display: flex;
+      flex-direction: column;
+    }
+
+    .surf-location-title {
+      font-size: 1rem;
+      font-weight: 700;
+      letter-spacing: 0.02em;
+    }
+
+    .surf-location-sub {
+      font-size: 0.8rem;
+      opacity: 0.9;
+    }
+
+    .surf-updated {
+      font-size: 0.75rem;
+      text-align: right;
+    }
+
+    .surf-current {
+      padding: 12px 16px;
+      border-bottom: 1px solid #e5e7eb;
+      display: grid;
+      grid-template-columns: 1.2fr 1fr;
+      gap: 10px;
+      background: #f9fafb;
+    }
+
+    .surf-main {
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+    }
+
+    .label {
+      font-size: 0.7rem;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      color: #6b7280;
+      margin-bottom: 4px;
+    }
+
+    .surf-height {
+      font-size: 1.7rem;
+      font-weight: 700;
+      margin-bottom: 4px;
+    }
+
+    .surf-quality {
+      font-size: 0.85rem;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .stars {
+      letter-spacing: 0.04em;
+      font-size: 0.95rem;
+    }
+
+    .surf-meta {
+      font-size: 0.75rem;
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 4px 10px;
+    }
+
+    .surf-section {
+      padding: 10px 16px 12px;
+    }
+
+    .surf-section-title {
+      font-size: 0.8rem;
+      font-weight: 600;
+      margin-bottom: 6px;
+      color: #0f172a;
+    }
+
+    .surf-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 0.75rem;
+    }
+
+    .surf-table th,
+    .surf-table td {
+      padding: 6px 4px;
+      text-align: left;
+      border-bottom: 1px solid #e5e7eb;
+      white-space: nowrap;
+    }
+
+    .surf-table th {
+      font-weight: 600;
+      color: #6b7280;
+    }
+
+    .surf-table tr:last-child td {
+      border-bottom: none;
+    }
+
+    .surf-footer {
+      padding: 8px 16px 10px;
+      border-top: 1px solid #e5e7eb;
+      font-size: 0.7rem;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      background: #f9fafb;
+      color: #6b7280;
+    }
+
+    .surf-footer a {
+      color: #0ea5e9;
+      text-decoration: none;
+    }
+
+    .surf-footer a:hover {
+      text-decoration: underline;
+    }
+
+    .badge {
+      padding: 2px 8px;
+      border-radius: 999px;
+      background: #0ea5e9;
+      color: #f9fafb;
+      font-size: 0.7rem;
+      font-weight: 500;
+    }
+
+    .error {
+      padding: 8px 16px;
+      font-size: 0.75rem;
+      color: #b91c1c;
+      background: #fef2f2;
+      border-top: 1px solid #fecaca;
+      display: none;
+    }
+
+    @media (max-width: 480px) {
+      .surf-card {
+        margin: 8px;
+      }
+      .surf-current {
+        grid-template-columns: 1fr;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="surf-card">
+    <!-- Header -->
+    <div class="surf-header">
+      <div class="surf-location">
+        <div class="surf-location-title">Scripps Pier</div>
+        <div class="surf-location-sub">La Jolla, California (LJPC1)</div>
+      </div>
+      <div class="surf-updated">
+        <div><strong id="header-status">Loading...</strong></div>
+        <div id="header-time">Connecting to buoy</div>
+      </div>
+    </div>
+
+    <!-- Current conditions -->
+    <div class="surf-current">
+      <div class="surf-main">
+        <div class="label">Significant surf (NOAA buoy)</div>
+        <div class="surf-height" id="surf-height">-- ft</div>
+        <div class="surf-quality">
+          <span class="stars" id="surf-stars">☆☆☆☆☆</span>
+          <span id="surf-quality-text">Waiting for data</span>
+        </div>
+      </div>
+      <div class="surf-meta">
+        <div>
+          <div class="label">Swell / Period</div>
+          <div id="meta-swell">-- ft @ -- s</div>
+        </div>
+        <div>
+          <div class="label">Wind</div>
+          <div id="meta-wind">-- kts</div>
+        </div>
+        <div>
+          <div class="label">Water Temp</div>
+          <div id="meta-water">-- °F</div>
+        </div>
+        <div>
+          <div class="label">Air Temp</div>
+          <div id="meta-air">-- °F</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Simple "feel" table based on buoy data -->
+    <div class="surf-section">
+      <div class="surf-section-title">Quick Read</div>
+      <table class="surf-table">
+        <thead>
+          <tr>
+            <th>Factor</th>
+            <th>Summary</th>
+          </tr>
+        </thead>
+        <tbody id="quick-table-body">
+          <tr><td colspan="2">Loading...</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <!-- Error -->
+    <div class="error" id="error-box"></div>
+
+    <!-- Footer -->
+    <div class="surf-footer">
+      <span>Live data from NOAA NDBC LJPC1 – Scripps Pier.</span>
+      <span class="badge">Buoy Verified</span>
+    </div>
+  </div>
+
+  <script>
+    function degToCompass(deg) {
+      if (deg == null) return "---";
+      const dirs = ["N","NNE","NE","ENE","E","ESE","SE","SSE","S","SSW","SW","WSW","W","WNW","NW","NNW"];
+      const i = Math.round(deg / 22.5) % 16;
+      return dirs[i];
+    }
+
+    function formatTime(iso) {
+      if (!iso) return "Time unavailable";
+      const d = new Date(iso);
+      return d.toLocaleString(undefined, {
+        month: "short",
+        day: "numeric",
+        hour: "numeric",
+        minute: "2-digit"
+      });
+    }
+
+    function computeRating(heightFt, periodSec, windKts) {
+      if (heightFt == null || periodSec == null) {
+        return { stars: 1, text: "Data incomplete" };
+      }
+
+      let score = 0;
+
+      // Size: Scripps is fun 2–6 ft, really good 3–5 ft
+      if (heightFt >= 1 && heightFt <= 6) score += 2;
+      if (heightFt >= 3 && heightFt <= 5) score += 2;
+
+      // Period
+      if (periodSec >= 10 && periodSec <= 18) score += 2;
+      if (periodSec >= 14) score += 1;
+
+      const w = windKts ?? 0;
+      if (w <= 5) score += 2;
+      else if (w <= 12) score += 1;
+
+      let stars = Math.max(1, Math.min(5, Math.round(score / 2)));
+      let text;
+      if (stars <= 2) text = "Small / weak";
+      else if (stars === 3) text = "Rideable";
+      else if (stars === 4) text = "Fun Scripps conditions";
+      else text = "Pumping (for Scripps)";
+
+      return { stars, text };
+    }
+
+    function setStars(num) {
+      const el = document.getElementById("surf-stars");
+      const full = "★";
+      const empty = "☆";
+      const n = Math.max(0, Math.min(5, num || 0));
+      el.textContent = full.repeat(n) + empty.repeat(5 - n);
+    }
+
+    function setError(msg) {
+      const box = document.getElementById("error-box");
+      box.textContent = msg;
+      box.style.display = "block";
+    }
+
+    function clearError() {
+      const box = document.getElementById("error-box");
+      box.textContent = "";
+      box.style.display = "none";
+    }
+
+    function describeFromBuoy(heightFt, periodSec, windKts) {
+      const out = [];
+
+      if (heightFt != null) {
+        if (heightFt < 1) out.push("Nearly flat");
+        else if (heightFt < 2) out.push("Small, longboard waves");
+        else if (heightFt < 3) out.push("Waist high, playful");
+        else if (heightFt < 5) out.push("Chest to head high, fun");
+        else out.push("Overhead, more powerful");
+      }
+
+      if (periodSec != null) {
+        if (periodSec < 8) out.push("short-period wind swell");
+        else if (periodSec < 12) out.push("mid-period mix");
+        else out.push("decent groundswell energy");
+      }
+
+      if (windKts != null) {
+        if (windKts <= 5) out.push("light winds");
+        else if (windKts <= 12) out.push("moderate wind");
+        else out.push("stronger winds, more texture");
+      }
+
+      return out.join(". ") || "No description available.";
+    }
+
+    async function loadBuoy() {
+      clearError();
+      document.getElementById("header-status").textContent = "Loading...";
+      document.getElementById("header-time").textContent = "Requesting buoy data";
+
+      try {
+        const resp = await fetch("/api/surf/scripps");
+        if (!resp.ok) throw new Error("Bad response from proxy");
+
+        const data = await resp.json();
+        if (data.error) throw new Error(data.error);
+
+        const waveFt = data.waveHeightFt;
+        const period = data.dominantPeriodSec ?? data.averagePeriodSec;
+        const windKts = data.windKts;
+        const windDirDeg = data.windDirDeg;
+        const waterF = data.waterTempF;
+        const airF = data.airTempF;
+
+        // Height range display (~20% band)
+        let heightText = "-- ft";
+        if (waveFt != null) {
+          const min = Math.max(0, waveFt * 0.8);
+          const max = waveFt * 1.2;
+          heightText = `${min.toFixed(1)}–${max.toFixed(1)} ft`;
+        }
+        document.getElementById("surf-height").textContent = heightText;
+
+        // Rating
+        const rating = computeRating(waveFt, period, windKts);
+        setStars(rating.stars);
+        document.getElementById("surf-quality-text").textContent = rating.text;
+
+        // Swell / period
+        const swellStr =
+          waveFt != null && period != null
+            ? `${waveFt.toFixed(1)} ft @ ${period.toFixed(0)} s`
+            : "-- ft @ -- s";
+        document.getElementById("meta-swell").textContent = swellStr;
+
+        // Wind
+        const windDirTxt = windDirDeg != null ? degToCompass(windDirDeg) : "---";
+        const windStr =
+          windKts != null
+            ? `${windKts.toFixed(1)} kts (${windDirTxt})`
+            : "-- kts";
+        document.getElementById("meta-wind").textContent = windStr;
+
+        // Temps
+        document.getElementById("meta-water").textContent =
+          waterF != null ? `${waterF.toFixed(1)} °F` : "-- °F";
+        document.getElementById("meta-air").textContent =
+          airF != null ? `${airF.toFixed(1)} °F` : "-- °F";
+
+        // Header
+        document.getElementById("header-status").textContent = "Buoy conditions";
+        document.getElementById("header-time").textContent =
+          "Last obs: " + formatTime(data.updatedIso);
+
+        // Quick read table
+        const tbody = document.getElementById("quick-table-body");
+        tbody.innerHTML = "";
+
+        const desc = describeFromBuoy(waveFt, period, windKts);
+        const rows = [
+          ["Overall", desc],
+          ["Buoy height", swellStr],
+          ["Wind", windStr],
+          ["Water", document.getElementById("meta-water").textContent]
+        ];
+
+        rows.forEach(([label, val]) => {
+          const tr = document.createElement("tr");
+          tr.innerHTML = `<td>${label}</td><td>${val}</td>`;
+          tbody.appendChild(tr);
+        });
+
+      } catch (err) {
+        console.error(err);
+        setError("Could not load Scripps Pier buoy data from NOAA. Check later or refresh.");
+        document.getElementById("header-status").textContent = "Error";
+        document.getElementById("header-time").textContent = "No recent buoy data";
+      }
+    }
+
+    loadBuoy();
+    // Optional: refresh every 10 minutes
+    setInterval(loadBuoy, 10 * 60 * 1000);
+  </script>
+</body>
+</html>
