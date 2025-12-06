@@ -13,10 +13,10 @@ export default async function handler(req, res) {
 
   try {
     const url = "https://www.ndbc.noaa.gov/data/5day/ljpc1_5day.txt";
-    const resp = await fetch(url);
 
+    const resp = await fetch(url);
     if (!resp.ok) {
-      throw new Error(`NDBC returned status ${resp.status}`);
+      throw new Error(`NDBC returned status ${resp.status} ${resp.statusText}`);
     }
 
     const text = await resp.text();
@@ -26,13 +26,17 @@ export default async function handler(req, res) {
       .filter(l => l.length && !l.startsWith("#"));
 
     if (lines.length < 2) {
-      throw new Error("Unexpected NDBC file format or no data");
+      throw new Error("Unexpected NDBC file format or no data lines");
     }
 
     // First non-# line = header
     const header = lines[0].split(/\s+/);
     // Last line = most recent observation
     const latest = lines[lines.length - 1].split(/\s+/);
+
+    if (latest.length < header.length) {
+      throw new Error("Latest data row does not match header length");
+    }
 
     const idx = Object.fromEntries(header.map((name, i) => [name, i]));
 
@@ -48,6 +52,10 @@ export default async function handler(req, res) {
     const month = parseNum(latest[idx["MM"]]); // 1–12
     const day   = parseNum(latest[idx["DD"]]);
     const hour  = parseNum(latest[idx["hh"]]); // UTC hour
+
+    if (!year || !month || !day || hour == null) {
+      throw new Error("Missing or invalid timestamp fields in NDBC data");
+    }
 
     const timestamp = new Date(Date.UTC(year, month - 1, day, hour, 0, 0));
 
@@ -85,7 +93,10 @@ export default async function handler(req, res) {
 
     res.status(200).json(json);
   } catch (err) {
-    console.error(err);
-    res.status(500).json({ error: "Failed to fetch Scripps buoy data" });
+    console.error("Error in /api/surf/scripps:", err);
+    res.status(500).json({
+      error: "Failed to fetch Scripps buoy data",
+      detail: String(err && err.message ? err.message : err)
+    });
   }
 }
