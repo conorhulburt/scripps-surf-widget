@@ -12,7 +12,7 @@ export default async function handler(req, res) {
   }
 
   try {
-    const url = "https://www.ndbc.noaa.gov/data/5day/ljpc1_5day.txt";
+    const url = "https://www.ndbc.noaa.gov/data/5day/LJPC1_5day.txt";
 
     const resp = await fetch(url);
     if (!resp.ok) {
@@ -100,3 +100,4 @@ export default async function handler(req, res) {
     });
   }
 }
+
