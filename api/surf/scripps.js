@@ -315,7 +315,7 @@ export default async function handler(req, res) {
     };
 
     // Core met / wave variables
-    const windDirDegRaw = findFirstValid(["WD"]);
+    const windDirDegRaw = findFirstValid(["WD", "WDIR", "DIR"]);
     const windMsRaw = findFirstValid(["WSPD"]);
     const gustMs = findFirstValid(["GST"]);
     const waveM = findFirstValid(["WVHT"]);
