@@ -56,11 +56,42 @@ async function fetchWindFromStationPage(stationId) {
   }
 
   const html = await resp.text();
-  const speedMatch = html.match(/Wind Speed:\s*<\/strong>\s*([\d.]+)/i) || html.match(/Wind Speed:\s*([\d.]+)/i);
-  const dirMatch = html.match(/Wind Direction:\s*<\/strong>[^0-9]*([0-9]{1,3})°/i) || html.match(/Wind Direction:[^0-9]*([0-9]{1,3})°/i);
+  const speedMatch = html.match(/Wind Speed:\s*<\/strong>\s*([\d.]+)\s*([a-zA-Z/]+)?/i) ||
+    html.match(/Wind Speed:\s*([\d.]+)\s*([a-zA-Z/]+)?/i);
+  const dirDegMatch = html.match(/Wind Direction:\s*<\/strong>[^0-9]*([0-9]{1,3})\s*(?:&deg;|°)/i) ||
+    html.match(/Wind Direction:[^0-9]*([0-9]{1,3})\s*(?:&deg;|°)/i);
+  const dirCardinalMatch = html.match(/Wind Direction:\s*<\/strong>\s*([A-Z]{1,3})/i) ||
+    html.match(/Wind Direction:\s*([A-Z]{1,3})/i);
 
-  const windKts = speedMatch ? parseFloat(speedMatch[1]) : null;
-  const windDirDeg = dirMatch ? parseFloat(dirMatch[1]) : null;
+  let windKts = null;
+  if (speedMatch) {
+    const raw = parseFloat(speedMatch[1]);
+    const unit = (speedMatch[2] || "kts").toLowerCase();
+    if (Number.isFinite(raw)) {
+      if (unit.includes("mph")) {
+        windKts = raw * 0.868976; // mph -> kts
+      } else if (unit.includes("m/s")) {
+        windKts = raw * 1.94384; // m/s -> kts
+      } else {
+        windKts = raw; // assume knots
+      }
+    }
+  }
+
+  const cardinalToDeg = (cardinal) => {
+    const map = {
+      N: 0, NNE: 22.5, NE: 45, ENE: 67.5,
+      E: 90, ESE: 112.5, SE: 135, SSE: 157.5,
+      S: 180, SSW: 202.5, SW: 225, WSW: 247.5,
+      W: 270, WNW: 292.5, NW: 315, NNW: 337.5,
+    };
+    return map[cardinal.toUpperCase()] ?? null;
+  };
+
+  let windDirDeg = dirDegMatch ? parseFloat(dirDegMatch[1]) : null;
+  if (windDirDeg == null && dirCardinalMatch) {
+    windDirDeg = cardinalToDeg(dirCardinalMatch[1]);
+  }
 
   if (windKts == null && windDirDeg == null) {
     throw new Error("Wind values not found on station page");
@@ -268,33 +299,34 @@ export default async function handler(req, res) {
       )
     );
 
+    // Helper to find the first valid numeric value for any of the provided fields
+    const findFirstValid = (fields) => {
+      for (const row of dataRows) {
+        for (const field of fields) {
+          if (field in idx && idx[field] < row.length) {
+            const parsed = parseNum(row[idx[field]]);
+            if (parsed != null) {
+              return parsed;
+            }
+          }
+        }
+      }
+      return null;
+    };
+
     // Core met / wave variables
-    const windDirDegRaw = ("WD" in idx && idx["WD"] < latest.length) ? parseNum(latest[idx["WD"]]) : null;
-    const windMsRaw     = ("WSPD" in idx && idx["WSPD"] < latest.length) ? parseNum(latest[idx["WSPD"]]) : null;
-    const gustMs     = ("GST" in idx && idx["GST"] < latest.length) ? parseNum(latest[idx["GST"]]) : null;
-    const waveM      = ("WVHT" in idx && idx["WVHT"] < latest.length) ? parseNum(latest[idx["WVHT"]]) : null;
-    const dpd        = ("DPD" in idx && idx["DPD"] < latest.length) ? parseNum(latest[idx["DPD"]]) : null;
-    const apd        = ("APD" in idx && idx["APD"] < latest.length) ? parseNum(latest[idx["APD"]]) : null;
+    const windDirDegRaw = findFirstValid(["WD"]);
+    const windMsRaw = findFirstValid(["WSPD"]);
+    const gustMs = findFirstValid(["GST"]);
+    const waveM = findFirstValid(["WVHT"]);
+    const dpd = findFirstValid(["DPD"]);
+    const apd = findFirstValid(["APD"]);
     
     // Swell direction - check multiple possible field names
     // MWD is the standard NDBC field for Mean Wave Direction
-    let swellDirDeg = null;
-    const swellDirFields = ["MWD", "MWWD", "WVDIR", "WAVE_DIR"];
-    for (const field of swellDirFields) {
-      if (field in idx && idx[field] !== undefined && idx[field] < latest.length) {
-        const rawValue = latest[idx[field]];
-        console.log(`[${new Date().toISOString()}] Checking swell direction field "${field}": raw value = "${rawValue}"`);
-        swellDirDeg = parseNum(rawValue);
-        if (swellDirDeg != null) {
-          console.log(`[${new Date().toISOString()}] Found swell direction in field "${field}": ${rawValue} -> ${swellDirDeg}°`);
-          break;
-        } else {
-          console.log(`[${new Date().toISOString()}] Swell direction field "${field}" exists but value is missing/invalid: "${rawValue}"`);
-        }
-      } else {
-        console.log(`[${new Date().toISOString()}] Swell direction field "${field}" not found in index`);
-      }
-    }
+    const swellDirFields = ["MWD", "MWWD", "WVDIR", "WAVE_DIR", "MWDIR", "MWDDIR"];
+    let swellDirDeg = findFirstValid(swellDirFields);
+    console.log(`[${new Date().toISOString()}] Swell direction search across ${swellDirFields.join(', ')} -> ${swellDirDeg}`);
     
     // If MWD wasn't found, log all available fields for debugging
     if (swellDirDeg == null) {
