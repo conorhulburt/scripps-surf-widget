@@ -86,18 +86,6 @@
       margin-bottom: 4px;
     }
 
-    .surf-quality {
-      font-size: 0.85rem;
-      display: flex;
-      align-items: center;
-      gap: 6px;
-    }
-
-    .stars {
-      letter-spacing: 0.04em;
-      font-size: 0.95rem;
-    }
-
     .surf-meta {
       font-size: 0.75rem;
       display: grid;
@@ -105,39 +93,6 @@
       gap: 4px 10px;
     }
 
-    .surf-section {
-      padding: 10px 16px 12px;
-    }
-
-    .surf-section-title {
-      font-size: 0.8rem;
-      font-weight: 600;
-      margin-bottom: 6px;
-      color: #0f172a;
-    }
-
-    .surf-table {
-      width: 100%;
-      border-collapse: collapse;
-      font-size: 0.75rem;
-    }
-
-    .surf-table th,
-    .surf-table td {
-      padding: 6px 4px;
-      text-align: left;
-      border-bottom: 1px solid #e5e7eb;
-      white-space: nowrap;
-    }
-
-    .surf-table th {
-      font-weight: 600;
-      color: #6b7280;
-    }
-
-    .surf-table tr:last-child td {
-      border-bottom: none;
-    }
 
     .surf-footer {
       padding: 8px 16px 10px;
@@ -274,10 +229,6 @@
       <div class="surf-main">
         <div class="label">Significant surf (NOAA buoy)</div>
         <div class="surf-height" id="surf-height">-- ft</div>
-        <div class="surf-quality">
-          <span class="stars" id="surf-stars">☆☆☆☆☆</span>
-          <span id="surf-quality-text">Waiting for data</span>
-        </div>
       </div>
       <div class="surf-meta">
         <div>
@@ -297,22 +248,6 @@
           <div id="meta-water">-- °F</div>
         </div>
       </div>
-    </div>
-
-    <!-- Simple "feel" table based on buoy data -->
-    <div class="surf-section">
-      <div class="surf-section-title">Quick Read</div>
-      <table class="surf-table">
-        <thead>
-          <tr>
-            <th>Factor</th>
-            <th>Summary</th>
-          </tr>
-        </thead>
-        <tbody id="quick-table-body">
-          <tr><td colspan="2">Loading...</td></tr>
-        </tbody>
-      </table>
     </div>
 
     <!-- Error -->

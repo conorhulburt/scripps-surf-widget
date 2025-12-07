@@ -48,6 +48,59 @@ async function fetchWithTimeout(url, timeout = FETCH_TIMEOUT) {
   }
 }
 
+async function fetchWindFromStationPage(stationId) {
+  const url = `https://www.ndbc.noaa.gov/station_page.php?station=${String(stationId || "").toLowerCase()}`;
+  const resp = await fetchWithTimeout(url, FETCH_TIMEOUT);
+  if (!resp || !resp.ok) {
+    throw new Error(`Wind page fetch failed: ${resp ? resp.status + " " + resp.statusText : "no response"}`);
+  }
+
+  const html = await resp.text();
+  const speedMatch = html.match(/Wind Speed:\s*<\/strong>\s*([\d.]+)\s*([a-zA-Z/]+)?/i) ||
+    html.match(/Wind Speed:\s*([\d.]+)\s*([a-zA-Z/]+)?/i);
+  const dirDegMatch = html.match(/Wind Direction:\s*<\/strong>[^0-9]*([0-9]{1,3})\s*(?:&deg;|°)/i) ||
+    html.match(/Wind Direction:[^0-9]*([0-9]{1,3})\s*(?:&deg;|°)/i);
+  const dirCardinalMatch = html.match(/Wind Direction:\s*<\/strong>\s*([A-Z]{1,3})/i) ||
+    html.match(/Wind Direction:\s*([A-Z]{1,3})/i);
+
+  let windKts = null;
+  if (speedMatch) {
+    const raw = parseFloat(speedMatch[1]);
+    const unit = (speedMatch[2] || "kts").toLowerCase();
+    if (Number.isFinite(raw)) {
+      if (unit.includes("mph")) {
+        windKts = raw * 0.868976; // mph -> kts
+      } else if (unit.includes("m/s")) {
+        windKts = raw * 1.94384; // m/s -> kts
+      } else {
+        windKts = raw; // assume knots
+      }
+    }
+  }
+
+  const cardinalToDeg = (cardinal) => {
+    const map = {
+      N: 0, NNE: 22.5, NE: 45, ENE: 67.5,
+      E: 90, ESE: 112.5, SE: 135, SSE: 157.5,
+      S: 180, SSW: 202.5, SW: 225, WSW: 247.5,
+      W: 270, WNW: 292.5, NW: 315, NNW: 337.5,
+    };
+    return map[cardinal.toUpperCase()] ?? null;
+  };
+
+  let windDirDeg = dirDegMatch ? parseFloat(dirDegMatch[1]) : null;
+  if (windDirDeg == null && dirCardinalMatch) {
+    windDirDeg = cardinalToDeg(dirCardinalMatch[1]);
+  }
+
+  if (windKts == null && windDirDeg == null) {
+    throw new Error("Wind values not found on station page");
+  }
+
+  console.log(`[${new Date().toISOString()}] Parsed wind from station page ${url}:`, { windKts, windDirDeg });
+  return { windKts, windDirDeg, sourceUrl: url };
+}
+
 // Validate parsed data for sanity
 function validateData(data) {
   const warnings = [];
@@ -246,33 +299,34 @@ export default async function handler(req, res) {
       )
     );
 
+    // Helper to find the first valid numeric value for any of the provided fields
+    const findFirstValid = (fields) => {
+      for (const row of dataRows) {
+        for (const field of fields) {
+          if (field in idx && idx[field] < row.length) {
+            const parsed = parseNum(row[idx[field]]);
+            if (parsed != null) {
+              return parsed;
+            }
+          }
+        }
+      }
+      return null;
+    };
+
     // Core met / wave variables
-    const windDirDeg = ("WD" in idx && idx["WD"] < latest.length) ? parseNum(latest[idx["WD"]]) : null;
-    const windMs     = ("WSPD" in idx && idx["WSPD"] < latest.length) ? parseNum(latest[idx["WSPD"]]) : null;
-    const gustMs     = ("GST" in idx && idx["GST"] < latest.length) ? parseNum(latest[idx["GST"]]) : null;
-    const waveM      = ("WVHT" in idx && idx["WVHT"] < latest.length) ? parseNum(latest[idx["WVHT"]]) : null;
-    const dpd        = ("DPD" in idx && idx["DPD"] < latest.length) ? parseNum(latest[idx["DPD"]]) : null;
-    const apd        = ("APD" in idx && idx["APD"] < latest.length) ? parseNum(latest[idx["APD"]]) : null;
+    const windDirDegRaw = findFirstValid(["WD", "WDIR", "DIR"]);
+    const windMsRaw = findFirstValid(["WSPD"]);
+    const gustMs = findFirstValid(["GST"]);
+    const waveM = findFirstValid(["WVHT"]);
+    const dpd = findFirstValid(["DPD"]);
+    const apd = findFirstValid(["APD"]);
     
     // Swell direction - check multiple possible field names
     // MWD is the standard NDBC field for Mean Wave Direction
-    let swellDirDeg = null;
-    const swellDirFields = ["MWD", "MWWD", "WVDIR", "WAVE_DIR"];
-    for (const field of swellDirFields) {
-      if (field in idx && idx[field] !== undefined && idx[field] < latest.length) {
-        const rawValue = latest[idx[field]];
-        console.log(`[${new Date().toISOString()}] Checking swell direction field "${field}": raw value = "${rawValue}"`);
-        swellDirDeg = parseNum(rawValue);
-        if (swellDirDeg != null) {
-          console.log(`[${new Date().toISOString()}] Found swell direction in field "${field}": ${rawValue} -> ${swellDirDeg}°`);
-          break;
-        } else {
-          console.log(`[${new Date().toISOString()}] Swell direction field "${field}" exists but value is missing/invalid: "${rawValue}"`);
-        }
-      } else {
-        console.log(`[${new Date().toISOString()}] Swell direction field "${field}" not found in index`);
-      }
-    }
+    const swellDirFields = ["MWD", "MWWD", "WVDIR", "WAVE_DIR", "MWDIR", "MWDDIR"];
+    let swellDirDeg = findFirstValid(swellDirFields);
+    console.log(`[${new Date().toISOString()}] Swell direction search across ${swellDirFields.join(', ')} -> ${swellDirDeg}`);
     
     // If MWD wasn't found, log all available fields for debugging
     if (swellDirDeg == null) {
@@ -349,9 +403,22 @@ export default async function handler(req, res) {
     const cToF    = (c)  => (c == null ? null : (c * 9) / 5 + 32);
 
     const waveHeightFt = mToFt(waveM);
-    const windKts = msToKts(windMs);
+    let windKts = msToKts(windMsRaw);
+    let windDirDeg = windDirDegRaw;
     const windGustKts = msToKts(gustMs);
     const waterTempF = cToF(wtmpC);
+
+    let windFromStation = null;
+    try {
+      windFromStation = await fetchWindFromStationPage(STATION_ID);
+    } catch (error) {
+      console.warn(`[${new Date().toISOString()}] Station page wind fetch failed:`, error.message || error);
+    }
+
+    if (windFromStation) {
+      windKts = windFromStation.windKts ?? windKts;
+      windDirDeg = windFromStation.windDirDeg ?? windDirDeg;
+    }
 
     // Ensure all required fields are defined (explicitly set to null if undefined)
     const finalSwellDirDeg = (swellDirDeg !== undefined) ? swellDirDeg : null;
@@ -383,6 +450,7 @@ export default async function handler(req, res) {
         urlsTried: candidateUrls,
         parseHeader: headerTokens,
         fetchTimeMs: Date.now() - startTime,
+        windSource: windFromStation ? "station_page" : "realtime2",
         availableFields: {
           temperature: tempFields,
           swellDirection: swellFields,
@@ -392,6 +460,9 @@ export default async function handler(req, res) {
           wtmpC: wtmpC,
           waterTempF: waterTempF,
           swellDirDeg: swellDirDeg,
+          windDirDegRaw: windDirDegRaw,
+          windMsRaw: windMsRaw,
+          windFromStation,
         },
         // Include the actual latest data row for debugging
         latestDataRow: latest,
