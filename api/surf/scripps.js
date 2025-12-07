@@ -4,7 +4,7 @@
 // Place this file at:  api/surf/scripps.js  in your Vercel project.
 
 // Configuration
-const STATION_ID = process.env.STATION_ID || "LJPC1";
+const STATION_ID = process.env.STATION_ID || "46254";
 const CACHE_TTL = 5 * 60 * 1000; // 5 minutes
 const FETCH_TIMEOUT = 10000; // 10 seconds
 const isDevelopment = process.env.NODE_ENV === "development";
@@ -360,7 +360,7 @@ export default async function handler(req, res) {
 
     const json = {
       stationId: STATION_ID,
-      name: "Scripps Pier, La Jolla, CA",
+      name: "Scripps Pier, La Jolla, CA (46254)",
       sourceUrl: usedUrl,
       updatedIso: timestamp.toISOString(),
 
