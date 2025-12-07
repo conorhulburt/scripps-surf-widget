@@ -180,9 +180,9 @@
     /* Loading skeleton */
     .surf-card.loading .surf-height,
     .surf-card.loading #meta-swell,
+    .surf-card.loading #meta-swell-dir,
     .surf-card.loading #meta-wind,
-    .surf-card.loading #meta-water,
-    .surf-card.loading #meta-air {
+    .surf-card.loading #meta-water {
       background: linear-gradient(90deg, #f0f0f0 25%, #e0e0e0 50%, #f0f0f0 75%);
       background-size: 200% 100%;
       animation: loading 1.5s ease-in-out infinite;
@@ -285,16 +285,16 @@
           <div id="meta-swell">-- ft @ -- s</div>
         </div>
         <div>
+          <div class="label">Swell Direction</div>
+          <div id="meta-swell-dir">---</div>
+        </div>
+        <div>
           <div class="label">Wind</div>
           <div id="meta-wind">-- kts</div>
         </div>
         <div>
           <div class="label">Water Temp</div>
           <div id="meta-water">-- °F</div>
-        </div>
-        <div>
-          <div class="label">Air Temp</div>
-          <div id="meta-air">-- °F</div>
         </div>
       </div>
     </div>

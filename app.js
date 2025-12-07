@@ -103,7 +103,7 @@ function setLoading(isLoading) {
   }
 }
 
-function describeFromBuoy(heightFt, periodSec, windKts) {
+function describeFromBuoy(heightFt, periodSec, windKts, swellDirDeg) {
   const out = [];
 
   if (heightFt != null) {
@@ -118,6 +118,16 @@ function describeFromBuoy(heightFt, periodSec, windKts) {
     if (periodSec < 8) out.push("short-period wind swell");
     else if (periodSec < 12) out.push("mid-period mix");
     else out.push("decent groundswell energy");
+  }
+
+  if (swellDirDeg != null) {
+    const dir = degToCompass(swellDirDeg);
+    // For Scripps, SW/WNW are typically best directions
+    if (dir === "SW" || dir === "WSW" || dir === "W" || dir === "WNW" || dir === "NW") {
+      out.push(`${dir} swell direction (favorable)`);
+    } else {
+      out.push(`${dir} swell direction`);
+    }
   }
 
   if (windKts != null) {
@@ -185,10 +195,17 @@ async function loadBuoy(showLoading = true) {
 
     const waveFt = data.waveHeightFt;
     const period = data.dominantPeriodSec ?? data.averagePeriodSec;
+    const swellDirDeg = data.swellDirDeg;
     const windKts = data.windKts;
     const windDirDeg = data.windDirDeg;
     const waterF = data.waterTempF;
-    const airF = data.airTempF;
+
+    // Debug logging
+    console.log("API Response data:", {
+      swellDirDeg: swellDirDeg,
+      waterTempF: waterF,
+      meta: data.meta
+    });
 
     // Check if data is stale
     const stale = isDataStale(data.updatedIso);
@@ -220,6 +237,16 @@ async function loadBuoy(showLoading = true) {
     const swellEl = document.getElementById("meta-swell");
     if (swellEl) swellEl.textContent = swellStr;
 
+    // Swell direction
+    const swellDirTxt = swellDirDeg != null && swellDirDeg !== undefined ? degToCompass(swellDirDeg) : "---";
+    const swellDirEl = document.getElementById("meta-swell-dir");
+    if (swellDirEl) {
+      swellDirEl.textContent = swellDirTxt;
+      console.log("Setting swell direction:", swellDirDeg, "->", swellDirTxt);
+    } else {
+      console.error("Swell direction element not found!");
+    }
+
     // Wind
     const windDirTxt = windDirDeg != null ? degToCompass(windDirDeg) : "---";
     const windStr =
@@ -229,14 +256,14 @@ async function loadBuoy(showLoading = true) {
     const windEl = document.getElementById("meta-wind");
     if (windEl) windEl.textContent = windStr;
 
-    // Temps
+    // Water temperature
     const waterEl = document.getElementById("meta-water");
     if (waterEl) {
-      waterEl.textContent = waterF != null ? `${waterF.toFixed(1)} °F` : "-- °F";
-    }
-    const airEl = document.getElementById("meta-air");
-    if (airEl) {
-      airEl.textContent = airF != null ? `${airF.toFixed(1)} °F` : "-- °F";
+      const waterText = waterF != null && waterF !== undefined ? `${waterF.toFixed(1)} °F` : "-- °F";
+      waterEl.textContent = waterText;
+      console.log("Setting water temp:", waterF, "->", waterText);
+    } else {
+      console.error("Water temperature element not found!");
     }
 
     // Header
@@ -256,11 +283,13 @@ async function loadBuoy(showLoading = true) {
     if (tbody) {
       tbody.innerHTML = "";
 
-      const desc = describeFromBuoy(waveFt, period, windKts);
+      const desc = describeFromBuoy(waveFt, period, windKts, swellDirDeg);
       const waterText = waterF != null ? `${waterF.toFixed(1)} °F` : "-- °F";
+      const swellDirText = swellDirDeg != null ? degToCompass(swellDirDeg) : "---";
       const rows = [
         ["Overall", desc],
         ["Buoy height", swellStr],
+        ["Swell direction", swellDirText],
         ["Wind", windStr],
         ["Water", waterText]
       ];

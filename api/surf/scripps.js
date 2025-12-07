@@ -66,6 +66,13 @@ function validateData(data) {
     }
   }
 
+  // Swell direction validation (reasonable range: 0-360 degrees)
+  if (data.swellDirDeg != null) {
+    if (data.swellDirDeg < 0 || data.swellDirDeg > 360) {
+      warnings.push(`Unusual swell direction: ${data.swellDirDeg}°`);
+    }
+  }
+
   // Wind validation (reasonable range: 0-100 knots)
   if (data.windKts != null) {
     if (data.windKts < 0 || data.windKts > 100) {
@@ -73,16 +80,10 @@ function validateData(data) {
     }
   }
 
-  // Temperature validation (reasonable range: 32-120°F for water, -20-120°F for air)
+  // Temperature validation (reasonable range: 32-120°F for water)
   if (data.waterTempF != null) {
     if (data.waterTempF < 32 || data.waterTempF > 120) {
       warnings.push(`Unusual water temp: ${data.waterTempF}°F`);
-    }
-  }
-
-  if (data.airTempF != null) {
-    if (data.airTempF < -20 || data.airTempF > 120) {
-      warnings.push(`Unusual air temp: ${data.airTempF}°F`);
     }
   }
 
@@ -168,9 +169,26 @@ export default async function handler(req, res) {
       if (line.startsWith("#")) {
         // Strip leading hashes and spaces
         const maybeHeader = line.replace(/^#+\s*/, "");
-        const tokens = maybeHeader.split(/\s+/);
+        const tokens = maybeHeader.split(/\s+/).filter(t => t.length > 0); // Remove empty tokens
         if (tokens.includes("YY") && tokens.includes("MM") && tokens.includes("DD")) {
           headerTokens = tokens;
+          console.log(`[${new Date().toISOString()}] Found header with ${tokens.length} fields:`, tokens.join(", "));
+          // Check if MWD, ATMP, WTMP are in the header
+          if (tokens.includes("MWD")) {
+            console.log(`[${new Date().toISOString()}] ✓ MWD found in header at position ${tokens.indexOf("MWD")}`);
+          } else {
+            console.warn(`[${new Date().toISOString()}] ✗ MWD NOT found in header`);
+          }
+          if (tokens.includes("ATMP")) {
+            console.log(`[${new Date().toISOString()}] ✓ ATMP found in header at position ${tokens.indexOf("ATMP")}`);
+          } else {
+            console.warn(`[${new Date().toISOString()}] ✗ ATMP NOT found in header`);
+          }
+          if (tokens.includes("WTMP")) {
+            console.log(`[${new Date().toISOString()}] ✓ WTMP found in header at position ${tokens.indexOf("WTMP")}`);
+          } else {
+            console.warn(`[${new Date().toISOString()}] ✗ WTMP NOT found in header`);
+          }
         }
         continue;
       }
@@ -195,11 +213,14 @@ export default async function handler(req, res) {
     );
 
     const parseNum = (value) => {
-      if (value == null) return null;
-      if (value === "MM") return null;              // Missing
-      if (/^9+(\.0+)?$/.test(value)) return null;   // 999, 9999, etc = missing
-      const n = Number(value);
-      return Number.isFinite(n) ? n : null;
+      if (value == null || value === undefined) return null;
+      const str = String(value).trim();
+      if (str === "" || str === "MM" || str === "NaN" || str === "N/A") return null;  // Missing indicators
+      if (/^9+(\.0+)?$/.test(str)) return null;   // 999, 9999, etc = missing
+      const n = Number(str);
+      if (!Number.isFinite(n)) return null;
+      // Note: 0 is a valid value for some measurements, so we don't filter it out
+      return n;
     };
 
     // Time fields – sometimes "YY" or "YYYY", and "hh" or "HH"
@@ -226,17 +247,101 @@ export default async function handler(req, res) {
     );
 
     // Core met / wave variables
-    const windDirDeg = parseNum(idx["WD"]    != null ? latest[idx["WD"]]    : null);
-    const windMs     = parseNum(idx["WSPD"]  != null ? latest[idx["WSPD"]]  : null);
-    const gustMs     = parseNum(idx["GST"]   != null ? latest[idx["GST"]]   : null);
-    const waveM      = parseNum(idx["WVHT"]  != null ? latest[idx["WVHT"]]  : null);
-    const dpd        = parseNum(idx["DPD"]   != null ? latest[idx["DPD"]]   : null);
-    const apd        = parseNum(idx["APD"]   != null ? latest[idx["APD"]]   : null);
+    const windDirDeg = ("WD" in idx && idx["WD"] < latest.length) ? parseNum(latest[idx["WD"]]) : null;
+    const windMs     = ("WSPD" in idx && idx["WSPD"] < latest.length) ? parseNum(latest[idx["WSPD"]]) : null;
+    const gustMs     = ("GST" in idx && idx["GST"] < latest.length) ? parseNum(latest[idx["GST"]]) : null;
+    const waveM      = ("WVHT" in idx && idx["WVHT"] < latest.length) ? parseNum(latest[idx["WVHT"]]) : null;
+    const dpd        = ("DPD" in idx && idx["DPD"] < latest.length) ? parseNum(latest[idx["DPD"]]) : null;
+    const apd        = ("APD" in idx && idx["APD"] < latest.length) ? parseNum(latest[idx["APD"]]) : null;
+    
+    // Swell direction - check multiple possible field names
+    // MWD is the standard NDBC field for Mean Wave Direction
+    let swellDirDeg = null;
+    const swellDirFields = ["MWD", "MWWD", "WVDIR", "WAVE_DIR"];
+    for (const field of swellDirFields) {
+      if (field in idx && idx[field] !== undefined && idx[field] < latest.length) {
+        const rawValue = latest[idx[field]];
+        console.log(`[${new Date().toISOString()}] Checking swell direction field "${field}": raw value = "${rawValue}"`);
+        swellDirDeg = parseNum(rawValue);
+        if (swellDirDeg != null) {
+          console.log(`[${new Date().toISOString()}] Found swell direction in field "${field}": ${rawValue} -> ${swellDirDeg}°`);
+          break;
+        } else {
+          console.log(`[${new Date().toISOString()}] Swell direction field "${field}" exists but value is missing/invalid: "${rawValue}"`);
+        }
+      } else {
+        console.log(`[${new Date().toISOString()}] Swell direction field "${field}" not found in index`);
+      }
+    }
+    
+    // If MWD wasn't found, log all available fields for debugging
+    if (swellDirDeg == null) {
+      console.warn(`[${new Date().toISOString()}] MWD not found. Available fields:`, Object.keys(idx).join(", "));
+      console.warn(`[${new Date().toISOString()}] Header tokens:`, headerTokens);
+    }
     const baro       = parseNum(idx["BARO"]  != null ? latest[idx["BARO"]]  :
                                 idx["PRES"]  != null ? latest[idx["PRES"]]  : null);
-    const atmpC      = parseNum(idx["ATMP"]  != null ? latest[idx["ATMP"]]  :
-                                idx["AT"]    != null ? latest[idx["AT"]]    : null);
-    const wtmpC      = parseNum(idx["WTMP"]  != null ? latest[idx["WTMP"]]  : null);
+    // Temperature fields - check multiple possible field names
+    // NOAA NDBC uses ATMP for air temp, WTMP for water temp
+    // Some stations may use variations
+    let atmpC = null;
+    const airTempFields = ["ATMP", "AT", "AIR_TEMP", "TEMP"];
+    for (const field of airTempFields) {
+      if (field in idx && idx[field] !== undefined && idx[field] < latest.length) {
+        const rawValue = latest[idx[field]];
+        console.log(`[${new Date().toISOString()}] Checking air temp field "${field}": raw value = "${rawValue}"`);
+        atmpC = parseNum(rawValue);
+        if (atmpC != null) {
+          console.log(`[${new Date().toISOString()}] Found air temp in field "${field}": ${rawValue} -> ${atmpC}°C`);
+          break;
+        } else {
+          console.log(`[${new Date().toISOString()}] Air temp field "${field}" exists but value is missing/invalid: "${rawValue}"`);
+        }
+      } else {
+        console.log(`[${new Date().toISOString()}] Air temp field "${field}" not found in index`);
+      }
+    }
+    
+    let wtmpC = null;
+    const waterTempFields = ["WTMP", "WT", "WATER_TEMP", "SEA_TEMP"];
+    for (const field of waterTempFields) {
+      if (field in idx && idx[field] !== undefined && idx[field] < latest.length) {
+        const rawValue = latest[idx[field]];
+        console.log(`[${new Date().toISOString()}] Checking water temp field "${field}": raw value = "${rawValue}"`);
+        wtmpC = parseNum(rawValue);
+        if (wtmpC != null) {
+          console.log(`[${new Date().toISOString()}] Found water temp in field "${field}": ${rawValue} -> ${wtmpC}°C`);
+          break;
+        } else {
+          console.log(`[${new Date().toISOString()}] Water temp field "${field}" exists but value is missing/invalid: "${rawValue}"`);
+        }
+      } else {
+        console.log(`[${new Date().toISOString()}] Water temp field "${field}" not found in index`);
+      }
+    }
+    
+    // If water temperature wasn't found, log for debugging
+    if (wtmpC == null) {
+      console.warn(`[${new Date().toISOString()}] Water temperature not found. Available fields:`, Object.keys(idx).join(", "));
+    }
+    
+    // Log available fields for debugging (always log, not just in development)
+    const tempFields = Object.keys(idx).filter(k => 
+      k.includes("TMP") || k.includes("TEMP") || k === "AT" || k === "WT"
+    );
+    const swellFields = Object.keys(idx).filter(k => 
+      k.includes("MWD") || k.includes("WVDIR") || k.includes("WAVE") || k.includes("DIR")
+    );
+    
+    console.log(`[${new Date().toISOString()}] Available fields - Temp: [${tempFields.join(", ")}], Swell Dir: [${swellFields.join(", ")}]`);
+    console.log(`[${new Date().toISOString()}] All header fields:`, headerTokens);
+    
+    if (tempFields.length === 0) {
+      console.warn(`[${new Date().toISOString()}] No temperature fields found in NDBC data header`);
+    }
+    if (swellFields.length === 0) {
+      console.warn(`[${new Date().toISOString()}] No swell direction fields found in NDBC data header`);
+    }
 
     // ---------- Unit helpers ----------
     const mToFt   = (m)  => (m == null ? null : m * 3.28084);
@@ -246,8 +351,12 @@ export default async function handler(req, res) {
     const waveHeightFt = mToFt(waveM);
     const windKts = msToKts(windMs);
     const windGustKts = msToKts(gustMs);
-    const airTempF = cToF(atmpC);
     const waterTempF = cToF(wtmpC);
+
+    // Ensure all required fields are defined (explicitly set to null if undefined)
+    const finalSwellDirDeg = (swellDirDeg !== undefined) ? swellDirDeg : null;
+    const finalWaterTempF = (waterTempF !== undefined) ? waterTempF : null;
+    const finalWaterTempC = (wtmpC !== undefined) ? wtmpC : null;
 
     const json = {
       stationId: STATION_ID,
@@ -255,7 +364,7 @@ export default async function handler(req, res) {
       sourceUrl: usedUrl,
       updatedIso: timestamp.toISOString(),
 
-      windDirDeg,
+      windDirDeg: windDirDeg ?? null,
       windKts,
       windGustKts: msToKts(gustMs),
 
@@ -263,25 +372,41 @@ export default async function handler(req, res) {
       waveHeightFt,
       dominantPeriodSec: dpd,
       averagePeriodSec: apd,
+      swellDirDeg: finalSwellDirDeg,
 
       barometricPressureHpa: baro,
-      airTempC: atmpC,
-      airTempF,
-      waterTempC: wtmpC,
-      waterTempF,
+      waterTempC: finalWaterTempC,
+      waterTempF: finalWaterTempF,
 
-      // Debug info that can be useful in the UI console (only in development)
-      ...(isDevelopment && {
-        meta: {
-          urlsTried: candidateUrls,
-          parseHeader: headerTokens,
-          fetchTimeMs: Date.now() - startTime,
+      // Debug info that can be useful in the UI console (always include for debugging)
+      meta: {
+        urlsTried: candidateUrls,
+        parseHeader: headerTokens,
+        fetchTimeMs: Date.now() - startTime,
+        availableFields: {
+          temperature: tempFields,
+          swellDirection: swellFields,
+          allFields: headerTokens,
         },
-      }),
+        rawValues: {
+          wtmpC: wtmpC,
+          waterTempF: waterTempF,
+          swellDirDeg: swellDirDeg,
+        },
+        // Include the actual latest data row for debugging
+        latestDataRow: latest,
+        fieldIndices: idx,
+      },
     };
 
     // Validate data
     validateData(json);
+
+    // Log parsing results (always log for debugging)
+    console.log(`[${new Date().toISOString()}] Parsing results:`);
+    console.log(`  Water temp: ${wtmpC}°C (${waterTempF}°F)`);
+    console.log(`  Swell direction: ${swellDirDeg}°`);
+    console.log(`[${new Date().toISOString()}] Final JSON will include: swellDirDeg=${finalSwellDirDeg} (type: ${typeof finalSwellDirDeg}), waterTempF=${finalWaterTempF} (type: ${typeof finalWaterTempF})`);
 
     // Update cache
     cache.data = json;
@@ -304,3 +429,4 @@ export default async function handler(req, res) {
     });
   }
 }
+
