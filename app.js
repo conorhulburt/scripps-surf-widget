@@ -86,6 +86,13 @@ function setError(msg) {
   box.style.display = "block";
 }
 
+function setStat(id, value) {
+  const el = document.getElementById(id);
+  if (el) {
+    el.textContent = value;
+  }
+}
+
 function clearError() {
   const box = document.getElementById("error-box");
   if (!box) return;
@@ -222,12 +229,14 @@ async function loadBuoy(showLoading = true) {
     }
     const heightEl = document.getElementById("surf-height");
     if (heightEl) heightEl.textContent = heightText;
+    setStat("stat-height", heightText);
 
     // Rating
     const rating = computeRating(waveFt, period, windKts);
     setStars(rating.stars);
     const qualityEl = document.getElementById("surf-quality-text");
     if (qualityEl) qualityEl.textContent = rating.text;
+    setStat("stat-quality", `${rating.stars}★ – ${rating.text}`);
 
     // Swell / period
     const swellStr =
@@ -236,6 +245,7 @@ async function loadBuoy(showLoading = true) {
         : "-- ft @ -- s";
     const swellEl = document.getElementById("meta-swell");
     if (swellEl) swellEl.textContent = swellStr;
+    setStat("stat-period", period != null ? `${period.toFixed(0)} s` : "-- s");
 
     // Swell direction
     const swellDirTxt = swellDirDeg != null && swellDirDeg !== undefined ? degToCompass(swellDirDeg) : "---";
@@ -246,6 +256,7 @@ async function loadBuoy(showLoading = true) {
     } else {
       console.error("Swell direction element not found!");
     }
+    setStat("stat-direction", swellDirTxt);
 
     // Wind
     const windDirTxt = windDirDeg != null ? degToCompass(windDirDeg) : "---";
@@ -265,6 +276,7 @@ async function loadBuoy(showLoading = true) {
     } else {
       console.error("Water temperature element not found!");
     }
+    setStat("stat-water", waterF != null ? `${waterF.toFixed(1)} °F` : "-- °F");
 
     // Header
     const statusEl = document.getElementById("header-status");

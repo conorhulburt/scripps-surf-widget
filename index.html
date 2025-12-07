@@ -139,6 +139,35 @@
       border-bottom: none;
     }
 
+    .stats-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+      gap: 10px;
+      padding: 10px 0 6px;
+    }
+
+    .stat-card {
+      background: #ffffff;
+      border: 1px solid #e5e7eb;
+      border-radius: 10px;
+      padding: 10px 12px;
+      box-shadow: 0 2px 6px rgba(15, 23, 42, 0.06);
+    }
+
+    .stat-title {
+      font-size: 0.7rem;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      color: #6b7280;
+      margin-bottom: 4px;
+    }
+
+    .stat-value {
+      font-weight: 700;
+      font-size: 1rem;
+      color: #0f172a;
+    }
+
     .surf-footer {
       padding: 8px 16px 10px;
       border-top: 1px solid #e5e7eb;
@@ -257,8 +286,8 @@
     <!-- Header -->
     <div class="surf-header">
       <div class="surf-location">
-        <div class="surf-location-title">Scripps Pier</div>
-        <div class="surf-location-sub">La Jolla, California (LJPC1)</div>
+        <div class="surf-location-title">Scripps Pier Daily Surf Report</div>
+        <div class="surf-location-sub">La Jolla, California – NOAA Station 46254</div>
       </div>
       <div class="surf-updated">
         <div><strong id="header-status">Loading...</strong></div>
@@ -295,6 +324,33 @@
         <div>
           <div class="label">Water Temp</div>
           <div id="meta-water">-- °F</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Simple "feel" table based on buoy data -->
+    <div class="surf-section">
+      <div class="surf-section-title">Key Daily Stats</div>
+      <div class="stats-grid">
+        <div class="stat-card">
+          <div class="stat-title">Wave Height</div>
+          <div class="stat-value" id="stat-height">-- ft</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-title">Wave Period</div>
+          <div class="stat-value" id="stat-period">-- s</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-title">Wave Direction</div>
+          <div class="stat-value" id="stat-direction">---</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-title">Water Temp</div>
+          <div class="stat-value" id="stat-water">-- °F</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-title">Quality Assessment</div>
+          <div class="stat-value" id="stat-quality">Waiting for data</div>
         </div>
       </div>
     </div>
