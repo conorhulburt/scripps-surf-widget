@@ -48,6 +48,28 @@ async function fetchWithTimeout(url, timeout = FETCH_TIMEOUT) {
   }
 }
 
+async function fetchWindFromStationPage(stationId) {
+  const url = `https://www.ndbc.noaa.gov/station_page.php?station=${String(stationId || "").toLowerCase()}`;
+  const resp = await fetchWithTimeout(url, FETCH_TIMEOUT);
+  if (!resp || !resp.ok) {
+    throw new Error(`Wind page fetch failed: ${resp ? resp.status + " " + resp.statusText : "no response"}`);
+  }
+
+  const html = await resp.text();
+  const speedMatch = html.match(/Wind Speed:\s*<\/strong>\s*([\d.]+)/i) || html.match(/Wind Speed:\s*([\d.]+)/i);
+  const dirMatch = html.match(/Wind Direction:\s*<\/strong>[^0-9]*([0-9]{1,3})°/i) || html.match(/Wind Direction:[^0-9]*([0-9]{1,3})°/i);
+
+  const windKts = speedMatch ? parseFloat(speedMatch[1]) : null;
+  const windDirDeg = dirMatch ? parseFloat(dirMatch[1]) : null;
+
+  if (windKts == null && windDirDeg == null) {
+    throw new Error("Wind values not found on station page");
+  }
+
+  console.log(`[${new Date().toISOString()}] Parsed wind from station page ${url}:`, { windKts, windDirDeg });
+  return { windKts, windDirDeg, sourceUrl: url };
+}
+
 // Validate parsed data for sanity
 function validateData(data) {
   const warnings = [];
@@ -247,8 +269,8 @@ export default async function handler(req, res) {
     );
 
     // Core met / wave variables
-    const windDirDeg = ("WD" in idx && idx["WD"] < latest.length) ? parseNum(latest[idx["WD"]]) : null;
-    const windMs     = ("WSPD" in idx && idx["WSPD"] < latest.length) ? parseNum(latest[idx["WSPD"]]) : null;
+    const windDirDegRaw = ("WD" in idx && idx["WD"] < latest.length) ? parseNum(latest[idx["WD"]]) : null;
+    const windMsRaw     = ("WSPD" in idx && idx["WSPD"] < latest.length) ? parseNum(latest[idx["WSPD"]]) : null;
     const gustMs     = ("GST" in idx && idx["GST"] < latest.length) ? parseNum(latest[idx["GST"]]) : null;
     const waveM      = ("WVHT" in idx && idx["WVHT"] < latest.length) ? parseNum(latest[idx["WVHT"]]) : null;
     const dpd        = ("DPD" in idx && idx["DPD"] < latest.length) ? parseNum(latest[idx["DPD"]]) : null;
@@ -349,9 +371,22 @@ export default async function handler(req, res) {
     const cToF    = (c)  => (c == null ? null : (c * 9) / 5 + 32);
 
     const waveHeightFt = mToFt(waveM);
-    const windKts = msToKts(windMs);
+    let windKts = msToKts(windMsRaw);
+    let windDirDeg = windDirDegRaw;
     const windGustKts = msToKts(gustMs);
     const waterTempF = cToF(wtmpC);
+
+    let windFromStation = null;
+    try {
+      windFromStation = await fetchWindFromStationPage(STATION_ID);
+    } catch (error) {
+      console.warn(`[${new Date().toISOString()}] Station page wind fetch failed:`, error.message || error);
+    }
+
+    if (windFromStation) {
+      windKts = windFromStation.windKts ?? windKts;
+      windDirDeg = windFromStation.windDirDeg ?? windDirDeg;
+    }
 
     // Ensure all required fields are defined (explicitly set to null if undefined)
     const finalSwellDirDeg = (swellDirDeg !== undefined) ? swellDirDeg : null;
@@ -383,6 +418,7 @@ export default async function handler(req, res) {
         urlsTried: candidateUrls,
         parseHeader: headerTokens,
         fetchTimeMs: Date.now() - startTime,
+        windSource: windFromStation ? "station_page" : "realtime2",
         availableFields: {
           temperature: tempFields,
           swellDirection: swellFields,
@@ -392,6 +428,9 @@ export default async function handler(req, res) {
           wtmpC: wtmpC,
           waterTempF: waterTempF,
           swellDirDeg: swellDirDeg,
+          windDirDegRaw: windDirDegRaw,
+          windMsRaw: windMsRaw,
+          windFromStation,
         },
         // Include the actual latest data row for debugging
         latestDataRow: latest,

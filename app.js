@@ -41,44 +41,6 @@ function formatRelativeTime(iso) {
   return formatTime(iso);
 }
 
-function computeRating(heightFt, periodSec, windKts) {
-  if (heightFt == null || periodSec == null) {
-    return { stars: 1, text: "Data incomplete" };
-  }
-
-  let score = 0;
-
-  // Size: Scripps is fun 2–6 ft, really good 3–5 ft
-  if (heightFt >= 1 && heightFt <= 6) score += 2;
-  if (heightFt >= 3 && heightFt <= 5) score += 2;
-
-  // Period
-  if (periodSec >= 10 && periodSec <= 18) score += 2;
-  if (periodSec >= 14) score += 1;
-
-  const w = windKts ?? 0;
-  if (w <= 5) score += 2;
-  else if (w <= 12) score += 1;
-
-  let stars = Math.max(1, Math.min(5, Math.round(score / 2)));
-  let text;
-  if (stars <= 2) text = "Small / weak";
-  else if (stars === 3) text = "Rideable";
-  else if (stars === 4) text = "Fun Scripps conditions";
-  else text = "Pumping (for Scripps)";
-
-  return { stars, text };
-}
-
-function setStars(num) {
-  const el = document.getElementById("surf-stars");
-  if (!el) return;
-  const full = "★";
-  const empty = "☆";
-  const n = Math.max(0, Math.min(5, num || 0));
-  el.textContent = full.repeat(n) + empty.repeat(5 - n);
-}
-
 function setError(msg) {
   const box = document.getElementById("error-box");
   if (!box) return;
@@ -101,42 +63,6 @@ function setLoading(isLoading) {
   } else {
     card.classList.remove("loading");
   }
-}
-
-function describeFromBuoy(heightFt, periodSec, windKts, swellDirDeg) {
-  const out = [];
-
-  if (heightFt != null) {
-    if (heightFt < 1) out.push("Nearly flat");
-    else if (heightFt < 2) out.push("Small, longboard waves");
-    else if (heightFt < 3) out.push("Waist high, playful");
-    else if (heightFt < 5) out.push("Chest to head high, fun");
-    else out.push("Overhead, more powerful");
-  }
-
-  if (periodSec != null) {
-    if (periodSec < 8) out.push("short-period wind swell");
-    else if (periodSec < 12) out.push("mid-period mix");
-    else out.push("decent groundswell energy");
-  }
-
-  if (swellDirDeg != null) {
-    const dir = degToCompass(swellDirDeg);
-    // For Scripps, SW/WNW are typically best directions
-    if (dir === "SW" || dir === "WSW" || dir === "W" || dir === "WNW" || dir === "NW") {
-      out.push(`${dir} swell direction (favorable)`);
-    } else {
-      out.push(`${dir} swell direction`);
-    }
-  }
-
-  if (windKts != null) {
-    if (windKts <= 5) out.push("light winds");
-    else if (windKts <= 12) out.push("moderate wind");
-    else out.push("stronger winds, more texture");
-  }
-
-  return out.join(". ") || "No description available.";
 }
 
 // Retry logic with exponential backoff
@@ -223,12 +149,6 @@ async function loadBuoy(showLoading = true) {
     const heightEl = document.getElementById("surf-height");
     if (heightEl) heightEl.textContent = heightText;
 
-    // Rating
-    const rating = computeRating(waveFt, period, windKts);
-    setStars(rating.stars);
-    const qualityEl = document.getElementById("surf-quality-text");
-    if (qualityEl) qualityEl.textContent = rating.text;
-
     // Swell / period
     const swellStr =
       waveFt != null && period != null
@@ -276,29 +196,6 @@ async function loadBuoy(showLoading = true) {
       const relativeTime = formatRelativeTime(data.updatedIso);
       timeEl.textContent = `Updated ${relativeTime}`;
       timeEl.title = formatTime(data.updatedIso); // Full time on hover
-    }
-
-    // Quick read table
-    const tbody = document.getElementById("quick-table-body");
-    if (tbody) {
-      tbody.innerHTML = "";
-
-      const desc = describeFromBuoy(waveFt, period, windKts, swellDirDeg);
-      const waterText = waterF != null ? `${waterF.toFixed(1)} °F` : "-- °F";
-      const swellDirText = swellDirDeg != null ? degToCompass(swellDirDeg) : "---";
-      const rows = [
-        ["Overall", desc],
-        ["Buoy height", swellStr],
-        ["Swell direction", swellDirText],
-        ["Wind", windStr],
-        ["Water", waterText]
-      ];
-
-      rows.forEach(([label, val]) => {
-        const tr = document.createElement("tr");
-        tr.innerHTML = `<td>${label}</td><td>${val}</td>`;
-        tbody.appendChild(tr);
-      });
     }
 
     setLoading(false);
