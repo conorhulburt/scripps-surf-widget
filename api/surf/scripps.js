@@ -66,7 +66,9 @@ async function fetchWindFromStationPage(stationId) {
   let windKts = null;
   if (speedMatch) {
     const raw = parseFloat(speedMatch[1]);
-    const unit = (speedMatch[2] || "kts").toLowerCase();
+    // NDBC station pages typically report in m/s; default to m/s so we never
+    // treat un-labeled values as knots and under-report the speed.
+    const unit = (speedMatch[2] || "m/s").toLowerCase();
     if (Number.isFinite(raw)) {
       if (unit.includes("mph")) {
         windKts = raw * 0.868976; // mph -> kts
