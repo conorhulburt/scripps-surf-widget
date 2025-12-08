@@ -2,328 +2,194 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <title>Scripps Pier Surf – Live NOAA LJPC1</title>
   <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Scripps Pier Daily Surf Report</title>
   <style>
+    :root {
+      color-scheme: light;
+      --bg: #0f172a;
+      --panel: #0b1221;
+      --accent: #22d3ee;
+      --muted: #94a3b8;
+      --border: #1f2937;
+      --good: #4ade80;
+    }
+
+    * { box-sizing: border-box; }
     body {
       margin: 0;
-      padding: 0;
-      font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-      background: #e0f2fe;
-      display: flex;
-      justify-content: center;
-      align-items: flex-start;
+      min-height: 100vh;
+      display: grid;
+      place-items: center;
+      background: #fff;
+      font-family: "Inter", system-ui, -apple-system, "Segoe UI", sans-serif;
+      padding: 12px;
+      color: #0f172a;
     }
 
-    .surf-card {
-      margin: 16px;
-      max-width: 480px;
-      width: 100%;
-      background: #ffffff;
+    .report {
+      width: min(420px, 100%);
+      background: var(--panel);
+      border: 1px solid var(--border);
       border-radius: 14px;
-      border: 1px solid #e5e7eb;
-      box-shadow: 0 8px 18px rgba(15, 23, 42, 0.15);
+      box-shadow: 0 16px 45px rgba(0,0,0,0.45);
       overflow: hidden;
-      color: #0f172a;
     }
 
-    .surf-header {
-      padding: 10px 16px;
-      background: linear-gradient(135deg, #0ea5e9, #22c55e);
-      color: #f9fafb;
+    .report, .report * { color: #e2e8f0; }
+
+    header {
+      padding: 14px 16px 10px;
+      border-bottom: 1px solid var(--border);
       display: flex;
-      justify-content: space-between;
       align-items: center;
+      gap: 12px;
+      background: linear-gradient(135deg, rgba(34,211,238,0.15), rgba(34,197,94,0.12));
     }
 
-    .surf-location {
-      display: flex;
-      flex-direction: column;
-    }
-
-    .surf-location-title {
-      font-size: 1rem;
+    header .title {
+      font-size: 1.15rem;
       font-weight: 700;
-      letter-spacing: 0.02em;
+      letter-spacing: 0.01em;
     }
 
-    .surf-location-sub {
-      font-size: 0.8rem;
-      opacity: 0.9;
-    }
-
-    .surf-updated {
-      font-size: 0.75rem;
-      text-align: right;
-    }
-
-    .surf-current {
-      padding: 12px 16px;
-      border-bottom: 1px solid #e5e7eb;
-      display: grid;
-      grid-template-columns: 1.2fr 1fr;
-      gap: 10px;
-      background: #f9fafb;
-    }
-
-    .surf-main {
-      display: flex;
-      flex-direction: column;
-      justify-content: center;
-    }
-
-    .label {
-      font-size: 0.7rem;
-      text-transform: uppercase;
-      letter-spacing: 0.08em;
-      color: #6b7280;
-      margin-bottom: 4px;
-    }
-
-    .surf-height {
-      font-size: 1.7rem;
-      font-weight: 700;
-      margin-bottom: 4px;
-    }
-
-    .surf-quality {
+    header .subtitle {
       font-size: 0.85rem;
-      display: flex;
-      align-items: center;
-      gap: 6px;
+      color: var(--muted);
     }
 
-    .stars {
-      letter-spacing: 0.04em;
-      font-size: 0.95rem;
-    }
-
-    .surf-meta {
+    .pill {
+      padding: 4px 10px;
+      border-radius: 999px;
+      border: 1px solid rgba(255,255,255,0.08);
+      background: rgba(34,211,238,0.12);
+      color: #c1fafe;
       font-size: 0.75rem;
-      display: grid;
-      grid-template-columns: 1fr 1fr;
-      gap: 4px 10px;
-    }
-
-    .surf-section {
-      padding: 10px 16px 12px;
-    }
-
-    .surf-section-title {
-      font-size: 0.8rem;
-      font-weight: 600;
-      margin-bottom: 6px;
-      color: #0f172a;
-    }
-
-    .surf-table {
-      width: 100%;
-      border-collapse: collapse;
-      font-size: 0.75rem;
-    }
-
-    .surf-table th,
-    .surf-table td {
-      padding: 6px 4px;
-      text-align: left;
-      border-bottom: 1px solid #e5e7eb;
+      margin-left: auto;
       white-space: nowrap;
     }
 
-    .surf-table th {
-      font-weight: 600;
-      color: #6b7280;
+    .data-block {
+      padding: 14px 16px 8px;
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+      gap: 12px;
     }
 
-    .surf-table tr:last-child td {
-      border-bottom: none;
+    .card {
+      padding: 12px;
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      background: rgba(255,255,255,0.02);
     }
 
-    .surf-footer {
-      padding: 8px 16px 10px;
-      border-top: 1px solid #e5e7eb;
+    .label {
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
       font-size: 0.7rem;
+      color: var(--muted);
+      margin-bottom: 4px;
+    }
+
+    .value {
+      font-size: 1.35rem;
+      font-weight: 700;
+    }
+
+    .meta {
+      font-size: 0.8rem;
+      color: var(--muted);
+    }
+
+    .footer {
+      padding: 10px 16px 12px;
+      border-top: 1px solid var(--border);
       display: flex;
       justify-content: space-between;
       align-items: center;
-      background: #f9fafb;
-      color: #6b7280;
+      font-size: 0.8rem;
+      color: var(--muted);
     }
 
-    .surf-footer a {
-      color: #0ea5e9;
-      text-decoration: none;
-    }
-
-    .surf-footer a:hover {
-      text-decoration: underline;
-    }
-
-    .badge {
-      padding: 2px 8px;
-      border-radius: 999px;
-      background: #0ea5e9;
-      color: #f9fafb;
-      font-size: 0.7rem;
-      font-weight: 500;
-    }
-
-    .error {
-      padding: 8px 16px;
-      font-size: 0.75rem;
-      color: #b91c1c;
-      background: #fef2f2;
-      border-top: 1px solid #fecaca;
-      display: none;
-    }
-
-    /* Loading skeleton */
-    .surf-card.loading .surf-height,
-    .surf-card.loading #meta-swell,
-    .surf-card.loading #meta-swell-dir,
-    .surf-card.loading #meta-wind,
-    .surf-card.loading #meta-water {
-      background: linear-gradient(90deg, #f0f0f0 25%, #e0e0e0 50%, #f0f0f0 75%);
-      background-size: 200% 100%;
-      animation: loading 1.5s ease-in-out infinite;
-      border-radius: 4px;
-      color: transparent;
-      min-height: 1.2em;
-    }
-
-    @keyframes loading {
-      0% { background-position: 200% 0; }
-      100% { background-position: -200% 0; }
-    }
-
-    /* Refresh button */
-    .refresh-btn {
-      background: rgba(255, 255, 255, 0.2);
-      border: 1px solid rgba(255, 255, 255, 0.3);
-      color: #f9fafb;
-      border-radius: 6px;
-      padding: 4px 8px;
-      font-size: 0.7rem;
+    button {
+      background: #349ba3;
+      color: #031019;
+      border: none;
+      border-radius: 8px;
+      font-weight: 700;
+      padding: 8px 12px;
       cursor: pointer;
-      transition: all 0.2s;
-      margin-left: 8px;
+      transition: transform 0.12s ease, box-shadow 0.12s ease;
+      box-shadow: 0 8px 20px rgba(52,155,163,0.25);
     }
 
-    .refresh-btn:hover {
-      background: rgba(255, 255, 255, 0.3);
-      border-color: rgba(255, 255, 255, 0.5);
-    }
+    button:active { transform: translateY(1px); }
 
-    .refresh-btn:active {
-      transform: scale(0.95);
-    }
-
-    .refresh-btn:disabled {
-      opacity: 0.5;
-      cursor: not-allowed;
-    }
-
-    .refresh-btn.spinning {
-      animation: spin 1s linear infinite;
-    }
-
-    @keyframes spin {
-      from { transform: rotate(0deg); }
-      to { transform: rotate(360deg); }
-    }
-
-    /* Stale data indicator */
-    .stale-warning {
-      font-size: 0.65rem;
-      color: #f59e0b;
-      margin-top: 2px;
-    }
-
-    @media (max-width: 480px) {
-      .surf-card {
-        margin: 8px;
-      }
-      .surf-current {
-        grid-template-columns: 1fr;
-      }
-      .surf-updated {
-        font-size: 0.7rem;
-      }
-    }
+    .status { color: var(--muted); font-size: 0.8rem; margin-left: 8px; }
+    .good { color: var(--good); }
+    .error { color: #fca5a5; font-size: 0.85rem; padding: 0 16px 12px; }
   </style>
 </head>
 <body>
-  <div class="surf-card">
-    <!-- Header -->
-    <div class="surf-header">
-      <div class="surf-location">
-        <div class="surf-location-title">Scripps Pier</div>
-        <div class="surf-location-sub">La Jolla, California (LJPC1)</div>
+  <article class="report" aria-live="polite">
+    <header>
+      <div>
+        <div class="title">Scripps Pier Surf Report</div>
+        <div class="subtitle">La Jolla, CA · NOAA 46254 &amp; LJPC1</div>
       </div>
-      <div class="surf-updated">
-        <div><strong id="header-status">Loading...</strong></div>
-        <div id="header-time">Connecting to buoy</div>
-        <button id="refresh-btn" class="refresh-btn" title="Refresh data" aria-label="Refresh surf data">
-          ↻ Refresh
-        </button>
+      <div class="pill" id="updated">Waiting for data…</div>
+    </header>
+
+    <section class="data-block" id="swell-block">
+      <div class="card">
+        <div class="label">Wave Height (WVHT)</div>
+        <div class="value" id="wvht">--</div>
+        <div class="meta">Significant wave height</div>
       </div>
-    </div>
-
-    <!-- Current conditions -->
-    <div class="surf-current">
-      <div class="surf-main">
-        <div class="label">Significant surf (NOAA buoy)</div>
-        <div class="surf-height" id="surf-height">-- ft</div>
-        <div class="surf-quality">
-          <span class="stars" id="surf-stars">☆☆☆☆☆</span>
-          <span id="surf-quality-text">Waiting for data</span>
-        </div>
+      <div class="card">
+        <div class="label">Wave Period (DPD)</div>
+        <div class="value" id="dpd">--</div>
+        <div class="meta">Dominant period</div>
       </div>
-      <div class="surf-meta">
-        <div>
-          <div class="label">Swell / Period</div>
-          <div id="meta-swell">-- ft @ -- s</div>
-        </div>
-        <div>
-          <div class="label">Swell Direction</div>
-          <div id="meta-swell-dir">---</div>
-        </div>
-        <div>
-          <div class="label">Wind</div>
-          <div id="meta-wind">-- kts</div>
-        </div>
-        <div>
-          <div class="label">Water Temp</div>
-          <div id="meta-water">-- °F</div>
-        </div>
+      <div class="card">
+        <div class="label">Wave Direction (MWD)</div>
+        <div class="value" id="mwd">--</div>
+        <div class="meta">Mean wave direction</div>
       </div>
-    </div>
+      <div class="card">
+        <div class="label">Water Temp (WTMP)</div>
+        <div class="value" id="wtmp">--</div>
+        <div class="meta">Sea surface temperature</div>
+      </div>
+    </section>
 
-    <!-- Simple "feel" table based on buoy data -->
-    <div class="surf-section">
-      <div class="surf-section-title">Quick Read</div>
-      <table class="surf-table">
-        <thead>
-          <tr>
-            <th>Factor</th>
-            <th>Summary</th>
-          </tr>
-        </thead>
-        <tbody id="quick-table-body">
-          <tr><td colspan="2">Loading...</td></tr>
-        </tbody>
-      </table>
-    </div>
+    <section class="data-block" id="wind-block">
+      <div class="card">
+        <div class="label">Wind Speed (WSPD)</div>
+        <div class="value" id="wspd">--</div>
+        <div class="meta">Scripps Pier anemometer</div>
+      </div>
+      <div class="card">
+        <div class="label">Wind Gust (GST)</div>
+        <div class="value" id="wgst">--</div>
+        <div class="meta">Peak gust in last hour</div>
+      </div>
+      <div class="card">
+        <div class="label">Wind Direction (WDIR)</div>
+        <div class="value" id="wdir">--</div>
+        <div class="meta">Compass direction</div>
+      </div>
+    </section>
 
-    <!-- Error -->
-    <div class="error" id="error-box"></div>
+    <div class="error" id="error" role="alert" hidden></div>
 
-    <!-- Footer -->
-    <div class="surf-footer">
-      <span>Live data from NOAA NDBC LJPC1 – Scripps Pier.</span>
-      <span class="badge">Buoy Verified</span>
-    </div>
-  </div>
+    <footer class="footer">
+      <div>
+        <span class="status" id="status">Fetching NOAA data…</span>
+      </div>
+      <button id="refresh">Refresh</button>
+    </footer>
+  </article>
 
   <script src="app.js"></script>
 </body>
