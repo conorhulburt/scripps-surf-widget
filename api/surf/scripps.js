@@ -4,7 +4,7 @@
 // Place this file at:  api/surf/scripps.js  in your Vercel project.
 
 // Configuration
-const STATION_ID = process.env.STATION_ID || "LJPC1";
+const DEFAULT_STATION_ID = process.env.STATION_ID || "LJPC1";
 const CACHE_TTL = 5 * 60 * 1000; // 5 minutes
 const FETCH_TIMEOUT = 10000; // 10 seconds
 const isDevelopment = process.env.NODE_ENV === "development";
@@ -13,6 +13,7 @@ const isDevelopment = process.env.NODE_ENV === "development";
 const cache = {
   data: null,
   timestamp: null,
+  stationId: null,
 };
 
 // CORS configuration - allow specific origins or all in development
@@ -97,6 +98,11 @@ function validateData(data) {
 export default async function handler(req, res) {
   const startTime = Date.now();
 
+  const stationId =
+    (req.query && (req.query.station || req.query.id)) ||
+    (req.body && (req.body.station || req.body.id)) ||
+    DEFAULT_STATION_ID;
+
   // CORS handling
   const allowedOrigins = getAllowedOrigins();
   const origin = req.headers.origin;
@@ -112,8 +118,13 @@ export default async function handler(req, res) {
   }
 
   // Check cache
-  if (cache.data && cache.timestamp && Date.now() - cache.timestamp < CACHE_TTL) {
-    console.log(`[${new Date().toISOString()}] Cache hit for ${STATION_ID}`);
+  if (
+    cache.data &&
+    cache.timestamp &&
+    cache.stationId === stationId &&
+    Date.now() - cache.timestamp < CACHE_TTL
+  ) {
+    console.log(`[${new Date().toISOString()}] Cache hit for ${stationId}`);
     return res.status(200).json(cache.data);
   }
 
@@ -121,10 +132,10 @@ export default async function handler(req, res) {
     // NDBC provides standard meteorological data in /data/realtime2.
     // For safety, we try a couple of likely URLs in order of preference.
     const candidateUrls = [
-      `https://www.ndbc.noaa.gov/data/realtime2/${STATION_ID}.txt`,
-      `https://www.ndbc.noaa.gov/data/5day/${STATION_ID}_5day.txt`,
-      `https://www.ndbc.noaa.gov/data/realtime2/${STATION_ID.toLowerCase()}.txt`,
-      `https://www.ndbc.noaa.gov/data/5day/${STATION_ID.toLowerCase()}_5day.txt`,
+      `https://www.ndbc.noaa.gov/data/realtime2/${stationId}.txt`,
+      `https://www.ndbc.noaa.gov/data/5day/${stationId}_5day.txt`,
+      `https://www.ndbc.noaa.gov/data/realtime2/${stationId.toLowerCase()}.txt`,
+      `https://www.ndbc.noaa.gov/data/5day/${stationId.toLowerCase()}_5day.txt`,
     ];
 
     const errors = [];
@@ -208,9 +219,7 @@ export default async function handler(req, res) {
     // NDBC realtime files are newest-first, so row 0 is the latest obs.
     const latest = dataRows[0];
 
-    const idx = Object.fromEntries(
-      headerTokens.map((name, i) => [name, i])
-    );
+    const idx = Object.fromEntries(headerTokens.map((name, i) => [name, i]));
 
     const parseNum = (value) => {
       if (value == null || value === undefined) return null;
@@ -247,7 +256,21 @@ export default async function handler(req, res) {
     );
 
     // Core met / wave variables
-    const windDirDeg = ("WD" in idx && idx["WD"] < latest.length) ? parseNum(latest[idx["WD"]]) : null;
+    const pickNumericField = (fields) => {
+      for (const field of fields) {
+        if (field in idx && idx[field] < latest.length) {
+          const raw = latest[idx[field]];
+          const value = parseNum(raw);
+          if (value != null) {
+            return { value, field, raw };
+          }
+        }
+      }
+      return { value: null, field: null, raw: null };
+    };
+
+    const windDirInfo = pickNumericField(["WDIR", "WD", "DR", "DIR"]);
+    const windDirDeg = windDirInfo.value;
     const windMs     = ("WSPD" in idx && idx["WSPD"] < latest.length) ? parseNum(latest[idx["WSPD"]]) : null;
     const gustMs     = ("GST" in idx && idx["GST"] < latest.length) ? parseNum(latest[idx["GST"]]) : null;
     const waveM      = ("WVHT" in idx && idx["WVHT"] < latest.length) ? parseNum(latest[idx["WVHT"]]) : null;
@@ -359,12 +382,14 @@ export default async function handler(req, res) {
     const finalWaterTempC = (wtmpC !== undefined) ? wtmpC : null;
 
     const json = {
-      stationId: STATION_ID,
+      stationId,
       name: "Scripps Pier, La Jolla, CA",
       sourceUrl: usedUrl,
       updatedIso: timestamp.toISOString(),
 
       windDirDeg: windDirDeg ?? null,
+      windDirField: windDirInfo.field,
+      windDirRaw: windDirInfo.raw,
       windKts,
       windGustKts: msToKts(gustMs),
 
@@ -392,6 +417,9 @@ export default async function handler(req, res) {
           wtmpC: wtmpC,
           waterTempF: waterTempF,
           swellDirDeg: swellDirDeg,
+          windDirDeg: windDirDeg,
+          windDirField: windDirInfo.field,
+          windDirRaw: windDirInfo.raw,
         },
         // Include the actual latest data row for debugging
         latestDataRow: latest,
@@ -411,9 +439,10 @@ export default async function handler(req, res) {
     // Update cache
     cache.data = json;
     cache.timestamp = Date.now();
+    cache.stationId = stationId;
 
     const responseTime = Date.now() - startTime;
-    console.log(`[${new Date().toISOString()}] Successfully processed ${STATION_ID} data in ${responseTime}ms`);
+    console.log(`[${new Date().toISOString()}] Successfully processed ${stationId} data in ${responseTime}ms`);
 
     res.status(200).json(json);
   } catch (err) {
